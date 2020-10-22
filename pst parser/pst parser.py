@@ -1,291 +1,160 @@
-import os
+# -*- coding: utf-8 -*-
+
 import sys
 import argparse
 import logging
 import jinja2
 import io
 import pypff
+import re
+from collections import Counter
+from email.header import decode_header
+from email.utils import parsedate_tz
+from datetime import datetime
+import time
+import calendar
+import email.utils
+import os
+import logging
+import io
+import pypff
 import unicodecsv as csv
 from collections import Counter
-import string
-import time
 
-__author__ = 'Preston Miller & Chapin Bryce'
-__date__ = '20160401'
-__version__ = 0.01
-__description__ = 'This scripts handles processing and output of PST Email Containers'
+csvlist = []
 
+#def main(file_name,result):
+def main():
+    opst=pypff.file()
+    opst.open('1234.pst')
+    root=opst.get_root_folder()
+    #csvReport(parse_folder(root),result)
+    csvReport(parse_folder(root))
+def prep(b):
+    if type(b) == bytes:
+        try:
+            b = b.decode("utf8")
+        except UnicodeDecodeError:
+            pass
+        else:
+            return b.strip() if b else None
+        try:
+            b = b.decode("cp1252")
+        except UnicodeDecodeError:
+            return None
+        else:
+            return b.strip() if b else None
+    return b.strip() if b else None
 
-output_directory = ""
-date_dict = {x:0 for x in xrange(1, 25)}
-date_list = [date_dict.copy() for x in xrange(7)]
+def email_time_to_timestamp(s):
+    tt = email.utils.parsedate_tz(s)
+    if tt is None: return None
+    return calendar.timegm(tt) - (tt[9]-32400)
 
-
-def main(pst_file, report_name):
-    """
-    The main function opens a PST and calls functions to parse and report data from the PST
-    :param pst_file: A string representing the path to the PST file to analyze
-    :param report_name: Name of the report title (if supplied by the user)
-    :return: None
-    """
-    logging.debug("Opening PST for processing...")
-    pst_name = os.path.split(pst_file)[1]
-    opst = pypff.open(pst_file)
-    root = opst.get_root_folder()
-
-    logging.debug("Starting traverse of PST structure...")
-    folderTraverse(root)
-
-    logging.debug("Generating Reports...")
-    top_word_list = wordStats()
-    top_sender_list = senderReport()
-    dateReport()
-
-    HTMLReport(report_name, pst_name, top_word_list, top_sender_list)
-
-
-def makePath(file_name):
-    """
-    The makePath function provides an absolute path between the output_directory and a file
-    :param file_name: A string representing a file name
-    :return: A string representing the path to a specified file
-    """
-    return os.path.abspath(os.path.join(output_directory, file_name))
-
-
-def folderTraverse(base):
-    """
-    The folderTraverse function walks through the base of the folder and scans for sub-folders and messages
-    :param base: Base folder to scan for new items within the folder.
-    :return: None
-    """
+def parse_folder(base):                     #1.folder 2.subject 3.To 4.Sender 5.Sendername 6.date 7.Body 8.attachment_counts
+    messages = []
     for folder in base.sub_folders:
         if folder.number_of_sub_folders:
-            folderTraverse(folder) # Call new folder to traverse:
-        checkForMessages(folder)
+            messages += parse_folder(folder)
+        for message in folder.sub_messages:
+            tempcsvlist={}
+            tempcsvlist['Folder']=folder.name
+            tempcsvlist['Subject']=message.subject
+            #print(message.transport_headers,message.subject)
+            #--------------------------------------------To 찾기
+            try:
+                buf=io.StringIO(message.transport_headers)
+                for i in message.transport_headers:
+                    tempstr=buf.readline()
+                    if tempstr[0:3]=='To:':
+                        pattern = "([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)(\.[a-zA-Z]*)"
+                        tempstr = message.transport_headers[message.transport_headers.find(tempstr):]
+                        if (tempstr[3:].find(':'))==-1:
+                            tempstr = re.findall(pattern, tempstr)
+                        else:
+                            tempstr=(tempstr[:tempstr[3:].find(':')+3])
+                            tempstr=re.findall(pattern,tempstr)
+                        if(len(tempstr)==0):
+                            tempcsvlist['To']=None
+                            break
+                        str_result=''
+                        for j in range(len(tempstr)):
+                            str_result+=tempstr[j][0]+'@'+tempstr[j][1]+tempstr[j][2]+' '
+                        tempcsvlist['To']=str_result
+                        break
+                    else:
+                        continue
+            except:
+                tempcsvlist['To']=None
+                pass
+            #--------------------------------------------Sender 찾기
+            try:
+                pattern = "From:.*([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)(\.[a-zA-Z]*)"
+                temp=re.search(pattern, message.transport_headers).group()
+                pattern = "([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)(\.[a-zA-Z]*)"
+                tempcsvlist['Sender']=re.search(pattern,temp).group()
+            except:
+                try:
+                    for i in range (len(message.transport_headers)):
+                        tempstr=message.transport_headers[message.transport_headers.find('From:'):]
+                        if tempstr[0].islower():
+                            i=message.transport_headers.find('From:')+1
+                        elif tempstr.find("<>") != -1:
+                            tempcsvlist['Sender']=None
+                            break
+                        else:
+                            pattern = "([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)(\.[a-zA-Z]*)"
+                            tempcsvlist['Sender']=re.search(pattern,tempstr).group()
+                            break
+                except:
+                    tempcsvlist['Sender']=None
+                    pass
+                pass
+            #-----------------------------------------------sender_name 추가
+            tempcsvlist['Sender_name']=message.sender_name
+            #-----------------------------------------------
+            #-----------------------------------------------date 추가
+            pattern = "Date:\s.*[0-9]*[\s][A-Za-z]*[\s]\d*[\s]\d*:\d*:\d*.[^(\s]*"
+            try:
+                tempdate = re.search(pattern, message.transport_headers).group()
+                pattern = "[0-9]*[\s][A-Za-z]*[\s]\d*[\s]\d*:\d*:\d*.[^(\s]*"
+                tempdate = re.search(pattern, tempdate).group()
+                tempcsvlist['Date']=time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime(email_time_to_timestamp(tempdate)))
+            except:
+                try:
+                    pattern = "[0-9]*[\s][A-Za-z]*[\s]\d*[\s]\d*:\d*:\d*.[^(\s]*"
+                    tempdate = re.search(pattern, message.transport_headers).group()
+                    tempcsvlist['Date']=time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime(email_time_to_timestamp(tempdate)))
+                except:
+                    tempcsvlist['Date']=None
 
+            #-----------------------------------------------메시지 본문 추가
+            tempcsvlist['Body']=prep(message.plain_text_body)
+            #-----------------------------------------------첨부파일 개수 추가
+            tempcsvlist['Attachments_count']=str(message.number_of_attachments)
+            #-----------------------------------------------
+            csvlist.append(tempcsvlist)
 
-def checkForMessages(folder):
-    """
-    The checkForMessages function reads folder messages if present and passes them to the report function
-    :param folder: pypff.Folder object
-    :return: None
-    """
-    logging.debug("Processing Folder: " + folder.name)
+    return csvlist
 
-    message_list = []
-
-    for message in folder.sub_messages:
-        message_dict = processMessage(message)
-        #print('message_dict : ',message_dict)
-        message_list.append(message_dict)
-    #print('debug checkformessages2',message_list)
-    folderReport(message_list, folder.name)
-
-
-def processMessage(message):
-    """
-    The processMessage function processes multi-field messages to simplify collection of information
-    :param message: pypff.Message object
-    :return: A dictionary with message fields (values) and their data (keys)
-    """
-
-    tempdict={'subject':message.subject}
-
-    tempdict['sender']=message.sender_name
-
-    tempdict['header']=message.transport_headers
-    tempdict['body']=message.plain_text_body
-    try:
-        print(message.plain_text_body.decode('utf-8'))
-    except:
-        pass
-    #print(message.subject)
-    #print(message.sender_name)
-    #time.sleep(10)
-    return tempdict
-    #tempdict['creation_time']=message.creation_time
-    #tempdict['submit_time']=message.client_submit_time
-    #tempdict['delivery_time']=message.delivery_time
-    #tempdict['attachment_count']=message.number_of_attachments
-
-
-def folderReport(message_list, folder_name):
-    """
-    The folderReport function generates a report per PST folder
-    :param message_list: A list of messages discovered during scans
-    :folder_name: The name of an Outlook folder within a PST
-    :return: None
-    """
+#def csvReport(message_list,result):
+def csvReport(message_list):
     if not len(message_list):
-        logging.warning("Empty message not processed")
+        #print("Empty message not processed")
         return
 
     # CSV Report
-    fout_path = makePath("folder_report_" + folder_name + ".csv")
-    fout = open(fout_path, 'wb')
-    header = ['sender', 'subject', 'attachment_count']
-    fout.write(u'\ufeff'.encode('utf8'))
-    csv_fout = csv.DictWriter(fout, fieldnames=header, extrasaction='ignore',encoding='utf-8')
+    #fout_path = result+ ".csv"
+    fout_path='test1235.csv'
+    with open(fout_path, 'wb')as fout:
+        header = ['Folder', 'Subject', 'To', 'Sender', 'Sender_name', 'Date', 'Body','Attachments_count']
+        fout.write(u'\ufeff'.encode('utf8'))
+        csv_fout = csv.DictWriter(fout, fieldnames=header, extrasaction='ignore', encoding='utf-8')
 
-    csv_fout.writeheader()
-    #print(message_list)
-    csv_fout.writerows(message_list)
+        csv_fout.writeheader()
+        csv_fout.writerows(message_list)
+        
     fout.close()
 
-    # HTML Report Prep
-    global date_list  # Allow access to edit global variable
-    body_out = io.open(makePath("message_body.txt"), 'a',encoding='utf-8')
-    senders_out = io.open(makePath("senders_names.txt"), 'a',encoding='utf-8')
-    for m in message_list:
-        #print('debughtml')
-        if m['body']:
-            str=m['body']+"\n\n"
-            body_out.write(str.decode('utf-8'))
-        if m['sender']:
-            senders_out.write(m['sender'] + '\n')
-        # Creation Time
-        #day_of_week = m['creation_time'].weekday()
-        #hour_of_day = m['creation_time'].hour + 1
-        #date_list[day_of_week][hour_of_day] += 1
-        # Submit Time
-        #day_of_week = m['submit_time'].weekday()
-        #hour_of_day = m['submit_time'].hour + 1
-        #date_list[day_of_week][hour_of_day] += 1
-        # Delivery Time
-        #day_of_week = m['delivery_time'].weekday()
-        #hour_of_day = m['delivery_time'].hour + 1
-        #date_list[day_of_week][hour_of_day] += 1
-
-    body_out.close()
-    senders_out.close()
-
-
-def wordStats(raw_file="message_body.txt"):
-    """
-    The wordStats function reads and counts words from a file
-    :param raw_file: The path to a file to read
-    :return: A list of word frequency counts
-    """
-    word_list = Counter()
-    for line in open(makePath(raw_file), 'r').readlines():
-        for word in line.split():
-            # Prevent too many false positives/common words
-            if word.isalnum() and len(word) > 4:
-                word_list[word] += 1
-    return wordReport(word_list)
-
-
-def wordReport(word_list):
-    """
-    The wordReport function counts a list of words and returns results in a CSV format
-    :param word_list: A list of words to iterate through
-    :return: None or html_report_list, a list of word frequency counts
-    """
-    if not word_list:
-        logging.debug('Message body statistics not available')
-        return
-
-    fout = open(makePath("frequent_words.csv"), 'wb')
-    fout.write("Count,Word\n")
-    for e in word_list.most_common():
-        if len(e) > 1:
-            fout.write(str(e[1]) + "," + str(e[0]) + "\n")
-    fout.close()
-
-    html_report_list = []
-    for e in word_list.most_common(10):
-        html_report_list.append({"word": str(e[0]), "count": str(e[1])})
-
-    return html_report_list
-
-
-def senderReport(raw_file="senders_names.txt"):
-    """
-    The senderReport function reports the most frequent_senders
-    :param raw_file: The file to read raw information
-    :return: html_report_list, a list of the most frequent senders
-    """
-    sender_list = Counter(open(makePath(raw_file), 'r').readlines())
-
-    fout = open(makePath("frequent_senders.csv"), 'wb')
-    fout.write("Count,Sender\n")
-    for e in sender_list.most_common():
-        if len(e) > 1:
-            fout.write(str(e[1]) + "," + str(e[0]))
-    fout.close()
-
-    html_report_list = []
-    for e in sender_list.most_common(5):
-        html_report_list.append({"label": str(e[0]), "count": str(e[1])})
-
-    return html_report_list
-
-
-def dateReport():
-    """
-    The dateReport function writes date information in a TSV report. No input args as the filename
-    is static within the HTML dashboard
-    :return: None
-    """
-    csv_out = open(makePath("heatmap.tsv"), 'w')
-    csv_out.write("day\thour\tvalue\n")
-    for date, hours_list in enumerate(date_list):
-        for hour, count in hours_list.items():
-            to_write = str(date+1) + "\t" + str(hour) + "\t" + str(count) + "\n"
-            csv_out.write(to_write)
-        csv_out.flush()
-    csv_out.close()
-
-
-def HTMLReport(report_title, pst_name, top_words, top_senders):
-    """
-    The HTMLReport function generates the HTML report from a Jinja2 Template
-    :param report_title: A string representing the title of the report
-    :param pst_name: A string representing the file name of the PST
-    :param top_words: A list of the top 10 words
-    :param top_senders: A list of the top 10 senders
-    :return: None
-    """
-    open_template = open("stats_template.html", 'r').read()
-    html_template = jinja2.Template(open_template)
-
-    context = {"report_title": report_title, "pst_name": pst_name,
-               "word_frequency": top_words, "percentage_by_sender": top_senders}
-    new_html = html_template.render(context)
-    html_report_file = open(makePath(report_title+".html"), 'w')
-    html_report_file.write(new_html)
-    html_report_file.close()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(version=str(__version__), description=__description__,
-                                     epilog='Developed by ' + __author__ + ' on ' + __date__)
-    parser.add_argument('PST_FILE', help="PST File Format from Microsoft Outlook")
-    parser.add_argument('OUTPUT_DIR', help="Directory of output for temporary and report files.")
-    parser.add_argument('--title', help='Title of the HTML Report. (default=PST Report)',
-                        default="PST Report")
-    parser.add_argument('-l', help='File path of log file.')
-    args = parser.parse_args()
-
-    output_directory = os.path.abspath(args.OUTPUT_DIR)
-
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
-
-    if args.l:
-        if not os.path.exists(args.l):
-            os.makedirs(args.l)
-        log_path = os.path.join(args.l, 'pst_indexer.log')
-    else:
-        log_path = 'pst_indexer.log'
-    logging.basicConfig(filename=log_path, level=logging.DEBUG,
-                        format='%(asctime)s | %(levelname)s | %(message)s', filemode='a')
-
-    logging.info('Starting PST_Indexer v.' + str(__version__))
-    logging.debug('System ' + sys.platform)
-    logging.debug('Version ' + sys.version)
-
-    logging.info('Starting Script...')
-    main(args.PST_FILE, args.title)
-    logging.info('Script Complete')
+main()
+#main(sys.argv[1],sys.argv[2])
