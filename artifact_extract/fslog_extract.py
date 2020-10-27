@@ -19,14 +19,14 @@ def check_argument(argv):
 
 def extract_artifact(argv):
 	casename = argv[2]
+	disk_image=argv[3]
+	image_dir =argv[3].split(".")[0]
 	db = MySQLdb.connect(host="192.168.4.188",
 				user="hadoopuser",
 				password="Hadoopuser1!",
 				db=casename, charset='utf8')
 	cur = db.cursor()
-	cur.execute("SELECT * FROM mftinfo WHERE `FN name`='$UsnJrnl' or `FN name`='$MFT' or `FN name`='$LogFile'")
-	disk_image= argv[3]
-	image_dir = argv[3].split(".")[0]
+	cur.execute("SELECT * FROM "+image_dir+ "_ mftinfo WHERE `FN name`='$UsnJrnl' or `FN name`='$MFT' or `FN name`='$LogFile'")
 
 	for row in cur.fetchall():
 		print(row)

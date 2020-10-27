@@ -23,15 +23,16 @@ def check_argument(argv):
 def user_info(argv):
 
 	casename = argv[2]
-
+	disk_image=argv[3]
+	image_dir=argv[3].split(".")[0]
 	db = MySQLdb.connect(host="192.168.4.188",
 				user="hadoopuser",
 				password="Hadoopuser1!",
 				db=casename, charset='utf8')
 	cur = db.cursor()
-	cur.execute("SELECT inum FROM mftinfo WHERE `FN name` = 'Users' and `FN pdfme` = 5;")
+	cur.execute("SELECT inum FROM "+image_dir+"_ mftinfo WHERE `FN name` = 'Users' and `FN pdfme` = 5;")
 	Users_inum = cur.fetchall()[0][0]
-	cur.execute("select `inum`,`FN name` from mftinfo where `FN name` != 'Default' and `FN name` !='Public' and `FN name`!='Default User' and `FN name` != 'All Users' and `FN name`!='desktop.ini' and `FN pdfme`="+str(Users_inum));
+	cur.execute("select `inum`,`FN name` from "+imagedir+"_ mftinfo where `FN name` != 'Default' and `FN name` !='Public' and `FN name`!='Default User' and `FN name` != 'All Users' and `FN name`!='desktop.ini' and `FN pdfme`="+str(Users_inum));
 	Userlist=[]
 	for name in cur.fetchall():
 		Userlist.append(name)

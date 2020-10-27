@@ -20,7 +20,6 @@ def check_argument(argv):
         return False
 
 def extract_artifact(argv, Userlist):
-	dbname=argv[2]
 	disk_image = argv[3]
 	casename=argv[2]
 	image_dir= disk_image.split(".")[0]
@@ -29,10 +28,10 @@ def extract_artifact(argv, Userlist):
 	SECURITY_path = "Windows/System32/Config/SECURITY"
 	SYSTEM_path = "Windows/System32/Config/SYSTEM"
 
-	SAM = file.get_fileinfo(SAM_path,dbname)
-	SOFTWARE=file.get_fileinfo(SOFTWARE_path,dbname)
-	SECURITY=file.get_fileinfo(SECURITY_path, dbname)
-	SYSTEM=file.get_fileinfo(SYSTEM_path, dbname)
+	SAM = file.get_fileinfo(SAM_path,image_dir, casename)
+	SOFTWARE=file.get_fileinfo(SOFTWARE_path,image_dir, casename)
+	SECURITY=file.get_fileinfo(SECURITY_path, image_dir, casename)
+	SYSTEM=file.get_fileinfo(SYSTEM_path, image_dir, casename)
 
 	command = "extractdata -i "+argv[1]+"/"+casename+"/"+disk_image+" -o 0 -q "+str(SAM[0])+" -e "+argv[1]+"/"+casename+"/"+image_dir+"/registry/"+SAM[1]
 	mftparse.run(command.split(" "))
@@ -45,7 +44,7 @@ def extract_artifact(argv, Userlist):
 
 	for user_inum, user in Userlist:
 		NTUSER_path="Users/"+user+"/NTUSER.DAT"
-		NTUSER = file.get_fileinfo(NTUSER_path, dbname)
+		NTUSER = file.get_fileinfo(NTUSER_path, image_dir, casename)
 		command = "extractdata -i "+argv[1]+"/"+casename+"/"+disk_image+" -o 0 -q "+str(NTUSER[0])+" -e "+argv[1]+"/"+casename+"/"+image_dir+"/registry/"+user+"_"+NTUSER[1]
 		mftparse.run(command.split(" "))
 

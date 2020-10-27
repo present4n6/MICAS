@@ -19,6 +19,8 @@ def check_argument(argv):
 
 def extract_artifact(argv):
 	casename = argv[2]
+	disk_image=argv[3]
+	image_dir = argv[3].split(".")[0]
 
 	db = MySQLdb.connect(host="192.168.4.188",
 				user="hadoopuser",
@@ -26,9 +28,7 @@ def extract_artifact(argv):
 				db=casename, charset='utf8')
 	cur = db.cursor()
 
-	cur.execute("SELECT * FROM mftinfo WHERE `FN name`  LIKE '%.ost' OR `FN name` LIKE '%.eml' OR `FN name` LIKE '%.pst';")
-	disk_image= argv[3]
-	image_dir = disk_image.split(".")[0]
+	cur.execute("SELECT * FROM "+image_dir+"_mftinfo WHERE `FN name`  LIKE '%.ost' OR `FN name` LIKE '%.eml' OR `FN name` LIKE '%.pst';")
 	for row in cur.fetchall():
 		print(row)
 		print(str(row[INUM]) + " " + row[F_NAME])

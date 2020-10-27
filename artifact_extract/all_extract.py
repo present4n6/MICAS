@@ -27,8 +27,19 @@ def check_argument(argv):
         return False
 
 def extract_artifact(argv):
+	rootdir=argv[1]
 	casename=argv[2]
+	disk_image=argv[3]
 	image_dir= disk_image.split(".")[0]
+
+	user_extract.extract_artifact(roodir, casename, disk_image)
+	email_extract.extract_artifact(roodir, casename, disk_image)
+	evtx_extract.extract_artifact(roodir, casename, disk_image)
+	fslog_extract.extract_artifact(rootdir, casename, disk_image)
+	prefetch_extract.extract_artifact(rootdir, casename, disk_image)
+	recycle_extract.extract_artifact(rootdir, casename, disk_image)
+	registry_extract.extract_artifact(rootdir, casename, disk_image)
+	webartifact_extract.extract_artifact(rootdir, casename, disk_image)
 
 
 def run(argv):
