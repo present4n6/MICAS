@@ -13,6 +13,7 @@ import calendar
 import time
 import unicodecsv as csv
 import io
+import base64
 
 sys.stdout=io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
 sys.stderr =io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
@@ -123,7 +124,6 @@ def extract_message_payload(msg):
         try:
             if (msg.get("Cc") != None):
                 hmail_ccs = msg.get("Cc").split(',')
-
                 for hmail_cc in hmail_ccs:
                     hmail_cc = email.utils.parseaddr(hmail_cc)
                     ptr = hmail_cc[1].find('@')
@@ -184,10 +184,13 @@ def extract_message_payload(msg):
         for part in msg.walk():
             try:
                 if (part.get('Content-Disposition') != None):
+                    counter += 1
                     # this part is an attachment
+                    if type(decode_header(part.get('Content-Disposition'))[0][0])==type(bytes()):
+                        filename = decode_header(part.get('Content-Disposition'))[1][0] #disgusting code
                     name = part.get_filename()
                     name = str(email.header.make_header(decode_header(name)))
-                    counter += 1
+
                     try:
                         h = email.Header.Header(name)
                         dh = email.Header.decode_header(h)
@@ -211,7 +214,18 @@ def extract_message_payload(msg):
                     continue
 
             except:
-                print("attachment parse error,but continue")
+                filename = decode_header(part.get('Content-Disposition'))[0][0].decode('utf-8')
+
+                filename = filename[filename.find('"') + 1:-1]
+                csvlist['Attachments_count'] = str(counter - 1)
+                csvlist['Attachments_list'] += filename + '\n'
+                if (os.path.exists('./attachments') == False):
+                    os.mkdir("./attachments")
+                fp = open(os.path.join('./attachments/', filename), 'wb')
+                fp.write(part.get_payload(decode=True))
+                fp.close()
+                continue
+
 
             # attachment
 
@@ -297,6 +311,6 @@ if __name__ == '__main__':
         file='mbox'
         messages = extract_mbox_file(file)
     '''
-    file='sent.mbox'
+    file='rembox'
     messages = extract_mbox_file(file)
     csvReport(csvresult)
