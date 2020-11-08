@@ -20,15 +20,14 @@ def check_argument(argv):
         return False
 
 def extract_artifact(argv, Userlist):
-	dbname=argv[2]
 	disk_image = argv[3]
 	casename=argv[2]
 	image_dir= disk_image.split(".")[0]
 	for user_inum, user in Userlist:
 		auto_path = "Users/"+user+"/AppData/Roaming/Microsoft/Windows/Recent/AutomaticDestinations"
 		custom_path = "Users/"+user+"/AppData/Roaming/Microsoft/Windows/Recent/CustomDestinations"
-		auto_dir = file.get_dirinfo(auto_path,dbname)
-		custom_dir = file.get_dirinfo(custom_path,dbname)
+		auto_dir = file.get_dirinfo(auto_path,image_dir, casename)
+		custom_dir = file.get_dirinfo(custom_path,image_dir, casename)
 		for files in auto_dir :
 			command = "extractdata -i" + " " + argv[1]+"/"+casename+"/"+disk_image + " " + "-o 0 -q" + " " + str(files[0]) + " " + "-e" + " " + argv[1] +"/" +casename + "/" +image_dir+ "/user/"+user+"/jumplist/auto/" + files[1].replace(" ","")
 			mftparse.run(command.split(" "))

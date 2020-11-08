@@ -26,7 +26,7 @@ def extract_artifact(argv, Userlist):
 	image_dir= disk_image.split(".")[0]
 	for user_inum, user in Userlist:
 		link_path = "Users/"+user+"/AppData/Roaming/Microsoft/Windows/Recent"
-		link_dir = file.get_dirinfo(link_path,dbname)
+		link_dir = file.get_dirinfo(link_path,image_dir,casename)
 		for files in link_dir :
 			if files[2]=="False" :
 				command = "extractdata -i" + " " + argv[1]+"/"+casename+"/"+disk_image + " " + "-o 0 -q" + " " + str(files[0]) + " " + "-e" + " " + argv[1] +"/" +casename + "/" +image_dir+ "/user/"+user+"/linkfile/" + files[1].replace(" ","")

@@ -6,4 +6,5 @@ if __name__=="__main__":
 				password="Hadoopuser1!")
 	cur=db.cursor()
 	cur.execute("create database " + sys.argv[1])
-
+	db.commit()
+	db.close()
