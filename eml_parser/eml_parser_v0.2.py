@@ -280,10 +280,10 @@ def csvReport(csv_list):
     if not len(csv_list):
         #print("Empty message not processed")
         return
-
+    fout_path = 'email_result.csv'
     # CSV Report
-    if os.path.isfile('email_result.csv')==True:
-        with open('email_result.csv', 'ab')as fout:
+    if os.path.isfile(fout_path)==True:
+        with open(fout_path, 'ab')as fout:
             header = ['Subject', 'To', 'To_name', 'From', 'From_name', 'Cc', 'Bcc', 'Date', 'IP', 'Body', 'htmlBody',
                       'Attachments_list', 'Attachments_count']
             fout.write(u'\ufeff'.encode('utf8'))
@@ -291,7 +291,6 @@ def csvReport(csv_list):
             csv_fout.writeheader()
             csv_fout.writerows(list(csv_list))
     else:
-        fout_path='email_result.csv'
         with open(fout_path, 'wb')as fout:
             header = ['Subject', 'To', 'To_name', 'From', 'From_name', 'Cc', 'Bcc', 'Date', 'IP', 'Body', 'htmlBody','Attachments_list', 'Attachments_count']
             fout.write(u'\ufeff'.encode('utf8'))
